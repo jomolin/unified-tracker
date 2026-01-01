@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body {
+      width: 350px;
+      min-height: 300px;
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      padding: 15px;
+    }
+    h2 {
+      margin: 0 0 15px 0;
+      font-size: 18px;
+      color: #333;
+    }
+    .grade-filter {
+      background: #e8f0fe;
+      color: #1967d2;
+      padding: 10px;
+      border-radius: 6px;
+      text-align: center;
+      font-weight: 600;
+      font-size: 14px;
+      margin-bottom: 15px;
+    }
+    .student-display {
+      font-size: 24px;
+      font-weight: bold;
+      text-align: center;
+      padding: 30px;
+      background: #f5f5f5;
+      border-radius: 8px;
+      margin: 15px 0;
+      min-height: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    button {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      margin: 5px 0;
+      color: white;
+    }
+    .btn-primary {
+      background: #4285f4;
+      font-size: 16px;
+      padding: 15px;
+    }
+    .btn-primary:hover {
+      background: #357ae8;
+    }
+    .btn-secondary {
+      background: #5f6368;
+    }
+    .btn-secondary:hover {
+      background: #4a4d50;
+    }
+    .button-group {
+      display: flex;
+      gap: 8px;
+      margin: 10px 0;
+    }
+    .button-group button {
+      flex: 1;
+    }
+    .btn-success {
+      background: #34a853;
+    }
+    .btn-success:hover {
+      background: #2d8e47;
+    }
+    .btn-danger {
+      background: #ea4335;
+    }
+    .btn-danger:hover {
+      background: #d33426;
+    }
+    .session-info {
+      margin-top: 15px;
+      padding: 10px;
+      background: #f5f5f5;
+      border-radius: 6px;
+      font-size: 13px;
+      color: #666;
+    }
+    .hint {
+      text-align: center;
+      font-size: 11px;
+      color: #999;
+      margin-top: 15px;
+    }
+    .open-sidebar {
+      background: #fbbc04;
+      color: #333;
+      margin-top: 20px;
+    }
+    .open-sidebar:hover {
+      background: #f9ab00;
+    }
+  </style>
+</head>
+<body>
+  <h2>🎲 Quick Session</h2>
+
+  <div class="grade-filter" id="grade-filter-display">
+    Grade Filter: All Students
+  </div>
+
+  <div id="selected-student" class="student-display">
+    Click button or press<br>Alt+Shift+S
+  </div>
+
+  <button id="btn-select" class="btn-primary">
+    Select Random Student
+  </button>
+
+  <button id="btn-toggle-grade" class="btn-secondary">
+    Toggle Grade Filter (Alt+Shift+G)
+  </button>
+
+  <div class="button-group">
+    <button id="btn-correct" class="btn-success" disabled>✓ Correct</button>
+    <button id="btn-incorrect" class="btn-danger" disabled>✗ Incorrect</button>
+  </div>
+
+  <div class="session-info">
+    <strong>Current Subject:</strong> <span id="current-subject">Auto-detect</span><br>
+    <strong>Pool Remaining:</strong> <span id="pool-remaining">—</span>
+  </div>
+
+  <div class="hint">
+    Hotkeys work anywhere:<br>
+    Alt+Shift+S (select) • Alt+Shift+C (correct) • Alt+Shift+X (incorrect)
+  </div>
+
+  <button id="btn-open-sidebar" class="open-sidebar">
+    📊 Open Full Tracker (Sidebar)
+  </button>
+
+  <script src="popup.js"></script>
+</body>
+</html>

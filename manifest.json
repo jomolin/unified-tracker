@@ -1,0 +1,67 @@
+{
+  "manifest_version": 3,
+  "name": "Student Tracker - Unified",
+  "version": "2.0.0",
+  "description": "Track student participation with popup hotkeys and detailed sidebar tracking",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting",
+    "tabs",
+    "sidePanel",
+    "alarms"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Student Tracker"
+  },
+  "side_panel": {
+    "default_path": "sidebar.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_end",
+      "all_frames": true
+    }
+  ],
+  "commands": {
+    "select-student": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+S"
+      },
+      "description": "Select random student",
+      "global": true
+    },
+    "mark-correct": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+C"
+      },
+      "description": "Mark correct",
+      "global": true
+    },
+    "mark-incorrect": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+X"
+      },
+      "description": "Mark incorrect",
+      "global": true
+    },
+    "toggle-grade-filter": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+G"
+      },
+      "description": "Toggle grade filter",
+      "global": true
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

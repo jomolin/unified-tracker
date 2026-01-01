@@ -1,0 +1,1138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Tracker</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #faf8f5;
+            --bg-secondary: #ffffff;
+            --text-primary: #1a1614;
+            --text-secondary: #6b6560;
+            --accent-primary: #d97706;
+            --accent-secondary: #92400e;
+            --accent-tertiary: #fbbf24;
+            --border: #e5e0db;
+            --success: #059669;
+            --warning: #dc2626;
+            --shadow: rgba(26, 22, 20, 0.08);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            overflow-x: hidden;
+            width: 100%;
+        }
+
+        body {
+            font-family: 'IBM Plex Sans', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.5;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 100%;
+            margin: 0 auto;
+            padding: 0.75rem;
+        }
+
+        header {
+            background: var(--bg-secondary);
+            border-bottom: 3px solid var(--accent-primary);
+            padding: 0.75rem 0;
+            margin-bottom: 0.75rem;
+            box-shadow: 0 4px 12px var(--shadow);
+        }
+
+        h1 {
+            font-family: 'DM Serif Display', serif;
+            font-size: 1.3rem;
+            color: var(--accent-secondary);
+            margin-bottom: 0.25rem;
+            letter-spacing: -0.02em;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            font-style: italic;
+        }
+
+        .main-tabs {
+            display: flex;
+            gap: 0.25rem;
+            margin-top: 0.5rem;
+            border-bottom: 2px solid var(--border);
+            flex-wrap: wrap;
+            overflow-x: auto;
+        }
+
+        .main-tab {
+            background: none;
+            border: none;
+            padding: 0.4rem 0.6rem;
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s ease;
+            font-family: 'IBM Plex Sans', sans-serif;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .main-tab:hover {
+            color: var(--accent-primary);
+        }
+
+        .main-tab.active {
+            color: var(--accent-secondary);
+            border-bottom-color: var(--accent-primary);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .section {
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 0.75rem;
+            margin-bottom: 0.75rem;
+            border: 2px solid var(--border);
+            box-shadow: 0 2px 8px var(--shadow);
+        }
+
+        h2 {
+            font-family: 'DM Serif Display', serif;
+            font-size: 1.3rem;
+            color: var(--accent-secondary);
+            margin-bottom: 0.75rem;
+            border-left: 4px solid var(--accent-primary);
+            padding-left: 0.75rem;
+        }
+
+        h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+        }
+
+        button {
+            background: var(--accent-primary);
+            color: white;
+            border: none;
+            padding: 0.4rem 0.75rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: 'IBM Plex Sans', sans-serif;
+        }
+
+        button:hover {
+            background: var(--accent-secondary);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px var(--shadow);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button.secondary {
+            background: var(--text-secondary);
+        }
+
+        button.secondary:hover {
+            background: var(--text-primary);
+        }
+
+        button.success {
+            background: var(--success);
+        }
+
+        button.success:hover {
+            background: #047857;
+        }
+
+        button.danger {
+            background: var(--warning);
+        }
+
+        button.danger:hover {
+            background: #b91c1c;
+        }
+
+        button.warning {
+            background: #f59e0b;
+        }
+
+        button.warning:hover {
+            background: #d97706;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .icon {
+            cursor: help;
+            position: relative;
+            display: inline-block;
+        }
+
+        .icon:hover::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--text-primary);
+            color: white;
+            padding: 0.35rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            white-space: nowrap;
+            z-index: 1000;
+            margin-bottom: 0.25rem;
+            font-style: normal;
+        }
+
+        /* Session Tab Styles */
+        .current-display {
+            background: linear-gradient(135deg, var(--accent-tertiary), var(--accent-primary));
+            border-radius: 12px;
+            padding: 2rem 1rem;
+            margin-bottom: 1rem;
+            text-align: center;
+            box-shadow: 0 4px 12px var(--shadow);
+        }
+
+        .current-student-name {
+            font-family: 'DM Serif Display', serif;
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: var(--accent-secondary);
+            margin-bottom: 0.5rem;
+        }
+
+        .current-info {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .subject-nav {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+            padding: 0.75rem;
+            background: var(--bg-primary);
+            border-radius: 8px;
+        }
+
+        .nav-arrow {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1.5rem;
+            width: 36px;
+            height: 36px;
+            cursor: pointer;
+            transition: all 0.2s;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+        }
+
+        .nav-arrow:hover {
+            color: var(--accent-primary);
+            background: var(--bg-secondary);
+            transform: none;
+        }
+
+        .current-subject {
+            font-weight: 600;
+            font-size: 1.1rem;
+            min-width: 120px;
+            text-align: center;
+        }
+
+        .action-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .action-grid button {
+            padding: 0.75rem;
+        }
+
+        .info-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+
+        .info-card {
+            background: var(--bg-primary);
+            padding: 0.75rem;
+            border-radius: 6px;
+            text-align: center;
+            border: 2px solid var(--border);
+        }
+
+        .info-label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.25rem;
+        }
+
+        .info-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent-secondary);
+            font-family: 'DM Serif Display', serif;
+        }
+
+        /* Student List Styles */
+        .student-row {
+            background: var(--bg-secondary);
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .student-row:hover {
+            border-color: var(--accent-primary);
+            box-shadow: 0 4px 12px var(--shadow);
+        }
+
+        .student-row-top {
+            display: grid;
+            grid-template-columns: 1fr auto auto;
+            gap: 0.75rem;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .student-row-name {
+            font-weight: 600;
+            font-size: 1rem;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .student-goal {
+            padding: 0.25rem 0.5rem;
+            border: 2px solid transparent;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 400;
+            cursor: text;
+            transition: all 0.3s ease;
+            color: var(--text-secondary);
+            font-family: 'IBM Plex Sans', sans-serif;
+            font-style: italic;
+            min-width: 60px;
+            max-width: 120px;
+        }
+
+        .student-goal:empty:before {
+            content: attr(data-placeholder);
+            color: var(--text-secondary);
+            opacity: 0.5;
+        }
+
+        .student-goal:hover {
+            background: var(--bg-primary);
+        }
+
+        .student-goal:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+            background: var(--bg-primary);
+            font-style: normal;
+        }
+
+        .student-goal:not(:empty) {
+            background: var(--bg-primary);
+            border-color: var(--border);
+        }
+
+        .student-row-input {
+            grid-column: 1 / -1;
+            padding: 0.4rem;
+            border: 2px solid transparent;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            min-height: 2rem;
+            cursor: text;
+            transition: all 0.3s ease;
+            color: var(--text-primary);
+            font-family: 'IBM Plex Sans', sans-serif;
+            line-height: 1.4;
+        }
+
+        .student-row-input:empty:before {
+            content: attr(data-placeholder);
+            color: var(--text-secondary);
+            font-style: italic;
+        }
+
+        .student-row-input:hover {
+            background: var(--bg-primary);
+        }
+
+        .student-row-input:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+            background: var(--bg-primary);
+        }
+
+        .last-note {
+            grid-column: 1 / -1;
+            font-size: 0.8rem;
+            font-weight: 400;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+            font-style: italic;
+            line-height: 1.3;
+            padding: 0.4rem;
+            background: var(--bg-primary);
+            border-radius: 4px;
+        }
+
+        .student-row-stats {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            text-align: right;
+        }
+
+        .stat-line {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            justify-content: flex-end;
+        }
+
+        .days-indicator {
+            display: inline-block;
+            padding: 0.2rem 0.5rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .days-indicator.recent {
+            background: #d1fae5;
+            color: var(--success);
+        }
+
+        .days-indicator.moderate {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .days-indicator.needs-attention {
+            background: #fee2e2;
+            color: var(--warning);
+        }
+
+        /* Form Styles */
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.35rem;
+            font-weight: 500;
+            font-size: 0.9rem;
+            color: var(--text-primary);
+        }
+
+        input[type="text"],
+        input[type="number"],
+        input[type="file"],
+        input[type="date"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 0.5rem;
+            border: 2px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-family: 'IBM Plex Sans', sans-serif;
+            transition: border-color 0.3s ease;
+        }
+
+        input:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .student-list-manage {
+            display: grid;
+            gap: 0.5rem;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .student-manage-item {
+            background: var(--bg-primary);
+            padding: 0.75rem;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 2px solid var(--border);
+        }
+
+        .student-manage-info {
+            flex: 1;
+        }
+
+        .student-manage-name {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .student-manage-meta {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        /* Schedule Styles */
+        .schedule-day-tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .schedule-day-tab {
+            padding: 0.4rem 0.75rem;
+            font-size: 0.85rem;
+        }
+
+        .schedule-day-tab.active {
+            background: var(--accent-secondary);
+        }
+
+        .schedule-list {
+            display: grid;
+            gap: 0.5rem;
+        }
+
+        .schedule-item {
+            background: var(--bg-primary);
+            padding: 0.75rem;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 2px solid var(--border);
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(26, 22, 20, 0.6);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            animation: modalFadeIn 0.3s ease;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 1.5rem;
+            max-width: 500px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(26, 22, 20, 0.3);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .modal-title {
+            font-family: 'DM Serif Display', serif;
+            font-size: 1.3rem;
+            color: var(--accent-secondary);
+        }
+
+        .close-modal {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 0;
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+        }
+
+        .close-modal:hover {
+            background: var(--border);
+            color: var(--text-primary);
+            transform: none;
+        }
+
+        .mgc-history {
+            margin-top: 1rem;
+        }
+
+        .history-item {
+            background: var(--bg-primary);
+            border-left: 3px solid var(--accent-primary);
+            padding: 0.75rem;
+            margin-bottom: 0.75rem;
+            border-radius: 6px;
+        }
+
+        .history-date {
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: var(--accent-secondary);
+            margin-bottom: 0.25rem;
+        }
+
+        .history-note {
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 2rem 1rem;
+            color: var(--text-secondary);
+        }
+
+        .prompt-section {
+            background: linear-gradient(135deg, var(--accent-tertiary), var(--accent-primary));
+            border-radius: 8px;
+            padding: 0.75rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 4px 12px var(--shadow);
+        }
+
+        .prompt-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .prompt-title {
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: var(--accent-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .prompt-text {
+            font-size: 0.95rem;
+            color: var(--text-primary);
+            line-height: 1.4;
+            font-style: italic;
+        }
+
+        .shortcuts {
+            background: var(--bg-primary);
+            padding: 0.75rem;
+            border-radius: 6px;
+            margin-top: 1rem;
+        }
+
+        .shortcut-list {
+            display: grid;
+            gap: 0.5rem;
+        }
+
+        .shortcut-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.85rem;
+        }
+
+        .shortcut-key {
+            background: var(--bg-secondary);
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.8rem;
+            border: 1px solid var(--border);
+        }
+
+        .interest-tag {
+            display: inline-block;
+            background: var(--bg-primary);
+            border: 2px solid var(--accent-primary);
+            color: var(--accent-secondary);
+            padding: 0.25rem 0.75rem;
+            border-radius: 16px;
+            font-size: 0.85rem;
+            margin: 0.25rem 0.25rem 0.25rem 0;
+            font-weight: 500;
+        }
+
+        .strength-tag {
+            border-color: var(--success);
+            color: var(--success);
+            background: #d1fae5;
+        }
+
+        @media (max-width: 768px) {
+            .student-row-top {
+                grid-template-columns: 1fr;
+            }
+
+            .student-row-stats {
+                text-align: left;
+            }
+
+            .action-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="main-tabs">
+                <button class="main-tab active" data-action="switch-tab" data-tab="session">
+                    <span class="icon" data-tooltip="Live session tracking">○ Session</span>
+                </button>
+                <button class="main-tab" data-action="switch-tab" data-tab="connections">
+                    <span class="icon" data-tooltip="Moments of Genuine Connection">◆ Connections</span>
+                </button>
+                <button class="main-tab" data-action="switch-tab" data-tab="interests">
+                    <span class="icon" data-tooltip="Student interests and strengths">★ Interests</span>
+                </button>
+                <button class="main-tab" data-action="switch-tab" data-tab="manage">
+                    <span class="icon" data-tooltip="Manage students and schedule">⚙ Manage</span>
+                </button>
+                <button class="main-tab" data-action="switch-tab" data-tab="reports">
+                    <span class="icon" data-tooltip="View data and export">≡ Reports</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- Session Tab -->
+        <div id="session-tab" class="tab-content active">
+            <div class="section">
+                <div class="subject-nav">
+                    <button class="nav-arrow" data-action="previous-subject" title="Previous subject">◄</button>
+                    <div class="current-subject" id="current-subject-display">General</div>
+                    <button class="nav-arrow" data-action="next-subject" title="Next subject">►</button>
+                </div>
+
+                <div class="current-display" id="current-student-display">
+                    <div class="student-placeholder">Press Alt+Shift+S to select a student</div>
+                </div>
+
+                <div class="action-grid">
+                    <button data-action="select-student" style="grid-column: 1 / -1;" title="Select random student (Alt+Shift+S)">
+                        <span class="icon" data-tooltip="Select Random">⊕</span> Select Student
+                    </button>
+                    <button class="success" data-action="mark-correct" id="btn-correct" disabled title="Mark correct (Alt+Shift+C)">
+                        <span class="icon" data-tooltip="Correct">✓</span> Correct
+                    </button>
+                    <button class="danger" data-action="mark-incorrect" id="btn-incorrect" disabled title="Mark incorrect (Alt+Shift+X)">
+                        <span class="icon" data-tooltip="Incorrect">✗</span> Incorrect
+                    </button>
+                    <button class="secondary" data-action="toggle-grade-filter" title="Filter by grade (Alt+Shift+G)">
+                        <span class="icon" data-tooltip="Toggle Filter">⊙</span> Filter: <span id="filter-display">All</span>
+                    </button>
+                    <button class="warning" data-action="mark-absent" id="btn-absent" disabled title="Mark absent (Alt+Shift+A)">
+                        <span class="icon" data-tooltip="Mark Absent">⊘</span> Absent
+                    </button>
+                </div>
+
+                <div class="info-cards">
+                    <div class="info-card">
+                        <div class="info-label">Remaining</div>
+                        <div class="info-value" id="students-remaining">0</div>
+                    </div>
+                    <div class="info-card">
+                        <div class="info-label">Called Today</div>
+                        <div class="info-value" id="calls-today">0</div>
+                    </div>
+                </div>
+
+                <div class="shortcuts">
+                    <h3><span class="icon" data-tooltip="Keyboard shortcuts">⌨</span> Shortcuts</h3>
+                    <div class="shortcut-list">
+                        <div class="shortcut-item">
+                            <span>Select Student</span>
+                            <span class="shortcut-key">Alt+Shift+S</span>
+                        </div>
+                        <div class="shortcut-item">
+                            <span>Mark Correct</span>
+                            <span class="shortcut-key">Alt+Shift+C</span>
+                        </div>
+                        <div class="shortcut-item">
+                            <span>Mark Incorrect</span>
+                            <span class="shortcut-key">Alt+Shift+X</span>
+                        </div>
+                        <div class="shortcut-item">
+                            <span>Mark Absent</span>
+                            <span class="shortcut-key">Alt+Shift+A</span>
+                        </div>
+                        <div class="shortcut-item">
+                            <span>Toggle Filter</span>
+                            <span class="shortcut-key">Alt+Shift+G</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Connections Tab -->
+        <div id="connections-tab" class="tab-content">
+            <div class="section">
+                <h2>Moments of Genuine Connection</h2>
+                
+                <div class="prompt-section" id="prompt-section" style="display: none;">
+                    <div class="prompt-header">
+                        <div class="prompt-title">
+                            <span class="icon" data-tooltip="Conversation starter">◆</span> Connection Idea
+                        </div>
+                        <button data-action="refresh-prompt" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;" title="Get new prompt">
+                            <span class="icon" data-tooltip="New Prompt">↻</span>
+                        </button>
+                    </div>
+                    <div class="prompt-text" id="prompt-text"></div>
+                </div>
+
+                <div id="connections-list"></div>
+                <div id="connections-empty" class="empty-state">
+                    <p>No students yet. Add students in the Manage tab.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Interests Tab -->
+        <div id="interests-tab" class="tab-content">
+            <div class="section">
+                <h2>Student Interests & Strengths</h2>
+                <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 1rem;">
+                    Track what students excel at and enjoy outside of academics - extracurriculars, hobbies, special talents, clubs, sports, arts, and other interests.
+                </p>
+
+                <div id="interests-list"></div>
+                <div id="interests-empty" class="empty-state">
+                    <p>No students yet. Add students in the Manage tab.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Manage Tab -->
+        <div id="manage-tab" class="tab-content">
+            <div class="section">
+                <h2>Students</h2>
+                
+                <div class="form-group">
+                    <label>Upload Student List (CSV: firstname,lastname,grade)</label>
+                    <input type="file" id="student-csv" accept=".csv">
+                </div>
+
+                <div class="button-group">
+                    <button data-action="handle-student-upload">
+                        <span class="icon" data-tooltip="Upload CSV">↑</span> Upload CSV
+                    </button>
+                    <button data-action="add-student-manually" class="secondary">
+                        <span class="icon" data-tooltip="Add Student">+</span> Add Manually
+                    </button>
+                    <button data-action="download-student-template" class="secondary">
+                        <span class="icon" data-tooltip="Download Template">↓</span> Template
+                    </button>
+                    <button data-action="delete-all-students" class="danger">
+                        <span class="icon" data-tooltip="Delete All">✕</span> Delete All
+                    </button>
+                </div>
+
+                <div class="student-list-manage" id="student-list-manage" style="margin-top: 1rem;">
+                    <div class="empty-state">No students yet. Upload a CSV or add manually.</div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>Class Schedule</h2>
+                
+                <div class="schedule-day-tabs">
+                    <button class="schedule-day-tab active" data-action="switch-schedule-day" data-day="monday">Mon</button>
+                    <button class="schedule-day-tab" data-action="switch-schedule-day" data-day="tuesday">Tue</button>
+                    <button class="schedule-day-tab" data-action="switch-schedule-day" data-day="wednesday">Wed</button>
+                    <button class="schedule-day-tab" data-action="switch-schedule-day" data-day="thursday">Thu</button>
+                    <button class="schedule-day-tab" data-action="switch-schedule-day" data-day="friday">Fri</button>
+                </div>
+
+                <div class="button-group" style="margin-top: 1rem;">
+                    <button data-action="open-add-schedule-modal" class="success">
+                        <span class="icon" data-tooltip="Add Periods">+</span> Add Periods
+                    </button>
+                    <button data-action="open-upload-schedule-modal" class="secondary">
+                        <span class="icon" data-tooltip="Upload Week CSV">↑</span> Upload Week
+                    </button>
+                    <button data-action="download-schedule-template" class="secondary">
+                        <span class="icon" data-tooltip="Download Template">↓</span> Template
+                    </button>
+                    <button data-action="delete-day-schedule" class="danger">
+                        <span class="icon" data-tooltip="Delete Day">✕</span> Delete Day
+                    </button>
+                    <button data-action="clear-week-schedule" class="danger">
+                        <span class="icon" data-tooltip="Clear Entire Week">⚠</span> Clear Week
+                    </button>
+                </div>
+
+                <div class="schedule-list" id="schedule-list" style="margin-top: 1rem;">
+                    <div class="empty-state">No schedule for this day yet.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Reports Tab -->
+        <div id="reports-tab" class="tab-content">
+            <div class="section">
+                <h2>Class Information</h2>
+                
+                <div class="form-group">
+                    <label>School Year</label>
+                    <input type="text" id="metadata-school-year" placeholder="2024-2025" style="padding: 0.5rem; border: 2px solid var(--border); border-radius: 6px; width: 100%; font-size: 0.9rem;">
+                </div>
+
+                <div class="form-group">
+                    <label>Term</label>
+                    <select id="metadata-term" style="padding: 0.5rem; border: 2px solid var(--border); border-radius: 6px; width: 100%; font-size: 0.9rem;">
+                        <option value="Term 1">Term 1</option>
+                        <option value="Term 2">Term 2</option>
+                        <option value="Term 3">Term 3</option>
+                        <option value="Term 4" selected>Term 4</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Teacher Name</label>
+                    <input type="text" id="metadata-teacher" placeholder="Your name" style="padding: 0.5rem; border: 2px solid var(--border); border-radius: 6px; width: 100%; font-size: 0.9rem;">
+                </div>
+
+                <div class="form-group">
+                    <label>Class Name</label>
+                    <input type="text" id="metadata-class" placeholder="Year 4-5" style="padding: 0.5rem; border: 2px solid var(--border); border-radius: 6px; width: 100%; font-size: 0.9rem;">
+                </div>
+
+                <button data-action="save-metadata" class="success">
+                    <span class="icon" data-tooltip="Save">✓</span> Save Information
+                </button>
+
+                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.5rem;">
+                    This information will be included in all exports and saved automatically.
+                </p>
+            </div>
+
+            <div class="section">
+                <h2>Export Data</h2>
+                
+                <div class="button-group">
+                    <button data-action="export-json">
+                        <span class="icon" data-tooltip="Export JSON">{ }</span> Export JSON
+                    </button>
+                    <button data-action="export-csv">
+                        <span class="icon" data-tooltip="Export CSV">↓</span> Export CSV
+                    </button>
+                    <button data-action="export-markdown">
+                        <span class="icon" data-tooltip="Export Markdown">≡</span> Export Markdown
+                    </button>
+                </div>
+
+                <div style="margin-top: 1rem; padding: 0.75rem; background: var(--bg-primary); border-radius: 6px;">
+                    <h3>Export Info</h3>
+                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.5rem;">
+                        <strong>JSON:</strong> Best for Claude Projects - preserves all data structure<br>
+                        <strong>CSV:</strong> Good for spreadsheets - flattened data<br>
+                        <strong>Markdown:</strong> Human-readable report format
+                    </p>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>Summary Statistics</h2>
+                <div id="summary-stats"></div>
+            </div>
+
+            <div class="section">
+                <h2>Data Management</h2>
+                <div class="button-group">
+                    <button data-action="reset-weights" class="secondary">
+                        <span class="icon" data-tooltip="Reset Weights">⟲</span> Reset Weights
+                    </button>
+                    <button data-action="clear-all-data" class="danger">
+                        <span class="icon" data-tooltip="Clear Everything">✕✕</span> Clear All Data
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- History Modal -->
+    <div id="history-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modal-student-name"></h3>
+                <button class="close-modal" data-action="close-history-modal">×</button>
+            </div>
+            <div id="modal-content"></div>
+        </div>
+    </div>
+
+    <!-- Add Students Modal -->
+    <div id="add-students-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Add Students</h3>
+                <button class="close-modal" data-action="close-add-students-modal">×</button>
+            </div>
+            <div class="form-group">
+                <label>Enter students (one per line: Firstname Lastname Grade)</label>
+                <textarea id="bulk-student-input" placeholder="John Smith 4
+Jane Doe 5
+Alex Johnson 4" style="min-height: 200px;"></textarea>
+                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.5rem;">
+                    Format: Firstname Lastname Grade (grade is optional, defaults to 4)
+                </p>
+            </div>
+            <div class="button-group">
+                <button data-action="process-bulk-students">
+                    <span class="icon" data-tooltip="Add Students">+</span> Add Students
+                </button>
+                <button data-action="close-add-students-modal" class="secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Schedule Modal -->
+    <div id="add-schedule-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Add Schedule Periods</h3>
+                <button class="close-modal" data-action="close-add-schedule-modal">×</button>
+            </div>
+            <div class="form-group">
+                <label>Enter schedule periods (one per line: Subject, Start Time, End Time)</label>
+                <textarea id="bulk-schedule-input" placeholder="Mathematics, 09:00, 10:00
+Reading, 10:00, 11:00
+Break, 11:00, 11:20" style="min-height: 200px;"></textarea>
+                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.5rem;">
+                    Format: Subject, HH:MM, HH:MM (24-hour format)
+                </p>
+            </div>
+            <div class="button-group">
+                <button data-action="process-bulk-schedule" class="success">
+                    <span class="icon" data-tooltip="Add Periods">+</span> Add Periods
+                </button>
+                <button data-action="close-add-schedule-modal" class="secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Upload Schedule CSV Modal -->
+    <div id="upload-schedule-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Upload Week Schedule</h3>
+                <button class="close-modal" data-action="close-upload-schedule-modal">×</button>
+            </div>
+            <div class="form-group">
+                <label>Upload CSV file (Day, Subject, Start Time, End Time)</label>
+                <input type="file" id="schedule-csv-input" accept=".csv" style="margin-bottom: 1rem; padding: 0.5rem; border: 2px solid var(--border); border-radius: 6px; width: 100%;">
+                <p style="font-size: 0.85rem; color: var(--text-secondary);">
+                    Day must be: Monday, Tuesday, Wednesday, Thursday, or Friday<br>
+                    Times in 24-hour format (HH:MM)
+                </p>
+            </div>
+            <div class="button-group">
+                <button data-action="process-schedule-csv" class="success">Upload Schedule</button>
+                <button data-action="close-upload-schedule-modal" class="secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="sidebar.js"></script>
+</body>
+</html>

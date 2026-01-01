@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Generate Icons</title>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <script>
+        function createIcon(size) {
+            const canvas = document.getElementById('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            
+            // Background
+            ctx.fillStyle = '#d97706';
+            ctx.fillRect(0, 0, size, size);
+            
+            // Border
+            ctx.strokeStyle = '#92400e';
+            ctx.lineWidth = size * 0.1;
+            ctx.strokeRect(0, 0, size, size);
+            
+            // Icon content - checkmark
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = size * 0.15;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            
+            ctx.beginPath();
+            ctx.moveTo(size * 0.25, size * 0.5);
+            ctx.lineTo(size * 0.4, size * 0.65);
+            ctx.lineTo(size * 0.75, size * 0.35);
+            ctx.stroke();
+            
+            return canvas.toDataURL('image/png');
+        }
+        
+        [16, 48, 128].forEach(size => {
+            const dataUrl = createIcon(size);
+            const link = document.createElement('a');
+            link.download = `icon${size}.png`;
+            link.href = dataUrl;
+            link.click();
+        });
+    </script>
+</body>
+</html>
