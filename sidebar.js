@@ -1,4 +1,3 @@
-
 // ======================
 // STATE MANAGEMENT
 // ======================
@@ -147,7 +146,20 @@ function checkDailyReset() {
             sessionPool = [];
             callsToday = 0;
             
-            chrome.storage.local.set({ lastResetDate: today }, () => {
+            // Reset all student weights to 1.0
+            students.forEach(s => {
+                if (s.participation) {
+                    s.participation.weight = 1.0;
+                }
+            });
+            
+            chrome.storage.local.set({ 
+                lastResetDate: today,
+                absentToday: [],
+                sessionPool: [],
+                callsToday: 0,
+                students: students
+            }, () => {
                 saveData();
             });
         }
@@ -325,141 +337,50 @@ function saveInterests(studentIndex) {
 // SESSION FUNCTIONS
 // ======================
 
-function calculateWeight(student) {
-    if (!student.participation) return 1.0;
-    
-    const currentSubject = getCurrentSubject();
-    const subjectCalls = student.participation.subjectBreakdown[currentSubject] 
-        ? (student.participation.subjectBreakdown[currentSubject].correct + 
-           student.participation.subjectBreakdown[currentSubject].incorrect) 
-        : 0;
-    
-    // Weight based on how many times they've been called in this subject
-    // Higher weight = less likely to be selected
-    return 1.0 + (subjectCalls * 2.0);
-}
-
 function selectStudent() {
-    const subject = getCurrentSubject();
+    // Delegate to background.js for consistent selection logic
+    chrome.runtime.sendMessage({ action: 'selectStudent' });
     
-    // Filter students
-    let availableStudents = students.filter(s => {
-        if (absentToday.includes(s.id)) return false;
-        if (gradeFilter !== 'all' && s.grade !== parseInt(gradeFilter)) return false;
-        return true;
-    });
+    // Wait a moment for background to update, then refresh display
+    setTimeout(() => {
+        chrome.storage.local.get(['currentStudent'], (result) => {
+            if (result.currentStudent) {
+                currentStudent = result.currentStudent;
+                const display = document.getElementById('current-student-display');
+                display.innerHTML = `
+                    <div class="current-student-name">${currentStudent.name}</div>
+                    <div class="current-info">Grade ${currentStudent.grade} | ${getCurrentSubject()}</div>
+                    <div class="current-info">Called: ${currentStudent.participation.totalCalls} times | Accuracy: ${currentStudent.participation.totalCalls > 0 ? Math.round((currentStudent.participation.correctAnswers / currentStudent.participation.totalCalls) * 100) : 0}%</div>
+                `;
 
-    if (availableStudents.length === 0) {
-        alert('No students available to select!');
-        return;
-    }
-
-    // Find the minimum number of calls any student has for this subject
-    const minCalls = Math.min(...availableStudents.map(s => {
-        const subjectData = s.participation.subjectBreakdown[subject];
-        return subjectData ? (subjectData.correct + subjectData.incorrect) : 0;
-    }));
-
-    // Only select from students who have the minimum number of calls
-    const leastCalledStudents = availableStudents.filter(s => {
-        const subjectData = s.participation.subjectBreakdown[subject];
-        const calls = subjectData ? (subjectData.correct + subjectData.incorrect) : 0;
-        return calls === minCalls;
-    });
-
-    // Random selection from least called students
-    const randomIndex = Math.floor(Math.random() * leastCalledStudents.length);
-    currentStudent = leastCalledStudents[randomIndex];
-    
-    // Display
-    const display = document.getElementById('current-student-display');
-    display.innerHTML = `
-        <div class="current-student-name">${currentStudent.name}</div>
-        <div class="current-info">Grade ${currentStudent.grade} | ${subject}</div>
-        <div class="current-info">Called: ${currentStudent.participation.totalCalls} times | Accuracy: ${currentStudent.participation.totalCalls > 0 ? Math.round((currentStudent.participation.correctAnswers / currentStudent.participation.totalCalls) * 100) : 0}%</div>
-    `;
-
-    // Enable buttons
-    document.getElementById('btn-correct').disabled = false;
-    document.getElementById('btn-incorrect').disabled = false;
-    document.getElementById('btn-absent').disabled = false;
-
-    updateSessionInfo();
+                document.getElementById('btn-correct').disabled = false;
+                document.getElementById('btn-incorrect').disabled = false;
+                document.getElementById('btn-absent').disabled = false;
+            }
+            updateSessionInfo();
+        });
+    }, 200);
 }
 
 function markCorrect() {
-    if (!currentStudent) return;
-    
-    const subject = getCurrentSubject();
-    
-    if (!currentStudent.participation) {
-        currentStudent.participation = {
-            totalCalls: 0,
-            correctAnswers: 0,
-            incorrectAnswers: 0,
-            weight: 1.0,
-            subjectBreakdown: {}
-        };
-    }
-
-    currentStudent.participation.totalCalls++;
-    currentStudent.participation.correctAnswers++;
-    callsToday++;
-
-    if (!currentStudent.participation.subjectBreakdown[subject]) {
-        currentStudent.participation.subjectBreakdown[subject] = { correct: 0, incorrect: 0 };
-    }
-    currentStudent.participation.subjectBreakdown[subject].correct++;
-
-    saveData();
-    clearCurrentStudent();
+    chrome.runtime.sendMessage({ action: 'markCorrect' });
+    setTimeout(() => {
+        clearCurrentStudent();
+    }, 100);
 }
 
 function markIncorrect() {
-    if (!currentStudent) return;
-    
-    const subject = getCurrentSubject();
-    
-    if (!currentStudent.participation) {
-        currentStudent.participation = {
-            totalCalls: 0,
-            correctAnswers: 0,
-            incorrectAnswers: 0,
-            weight: 1.0,
-            subjectBreakdown: {}
-        };
-    }
-
-    currentStudent.participation.totalCalls++;
-    currentStudent.participation.incorrectAnswers++;
-    callsToday++;
-
-    if (!currentStudent.participation.subjectBreakdown[subject]) {
-        currentStudent.participation.subjectBreakdown[subject] = { correct: 0, incorrect: 0 };
-    }
-    currentStudent.participation.subjectBreakdown[subject].incorrect++;
-
-    saveData();
-    clearCurrentStudent();
+    chrome.runtime.sendMessage({ action: 'markIncorrect' });
+    setTimeout(() => {
+        clearCurrentStudent();
+    }, 100);
 }
 
 function markAbsent() {
-    if (!currentStudent) return;
-    
-    if (!absentToday.includes(currentStudent.id)) {
-        absentToday.push(currentStudent.id);
-    }
-
-    if (!currentStudent.absences) {
-        currentStudent.absences = [];
-    }
-    currentStudent.absences.push({
-        date: new Date().toISOString().split('T')[0],
-        subject: getCurrentSubject()
-    });
-
-    saveData();
-    clearCurrentStudent();
+    chrome.runtime.sendMessage({ action: 'markAbsent' });
+    setTimeout(() => {
+        clearCurrentStudent();
+    }, 100);
 }
 
 function clearCurrentStudent() {
@@ -468,22 +389,29 @@ function clearCurrentStudent() {
     document.getElementById('btn-correct').disabled = true;
     document.getElementById('btn-incorrect').disabled = true;
     document.getElementById('btn-absent').disabled = true;
-    updateSessionInfo();
     
-    // Check if we're on the manage tab and update it
-    const manageTab = document.getElementById('manage-tab');
-    if (manageTab.classList.contains('active')) {
-        renderStudentListManage();
-    }
+    // Reload data to get updated student info
+    chrome.storage.local.get(['students', 'callsToday'], (result) => {
+        students = result.students || [];
+        callsToday = result.callsToday || 0;
+        updateSessionInfo();
+        
+        const manageTab = document.getElementById('manage-tab');
+        if (manageTab.classList.contains('active')) {
+            renderStudentListManage();
+        }
+    });
 }
 
 function toggleGradeFilter() {
-    const grades = ['all', '4', '5'];
-    const currentIndex = grades.indexOf(gradeFilter);
-    gradeFilter = grades[(currentIndex + 1) % grades.length];
-    document.getElementById('filter-display').textContent = gradeFilter === 'all' ? 'All' : `Y${gradeFilter}`;
-    saveData();
-    updateSessionInfo();
+    chrome.runtime.sendMessage({ action: 'toggleGradeFilter' });
+    setTimeout(() => {
+        chrome.storage.local.get(['gradeFilter'], (result) => {
+            gradeFilter = result.gradeFilter || 'all';
+            document.getElementById('filter-display').textContent = gradeFilter === 'all' ? 'All' : `Y${gradeFilter}`;
+            updateSessionInfo();
+        });
+    }, 100);
 }
 
 function updateSessionInfo() {
@@ -952,7 +880,7 @@ function renderStudentListManage() {
 
     list.innerHTML = students.map(student => {
         const isAbsent = absentToday.includes(student.id);
-        const weight = calculateWeight(student).toFixed(2);
+        const weight = student.participation ? student.participation.weight.toFixed(2) : '1.00';
         
         return `
             <div class="student-manage-item" style="${isAbsent ? 'opacity: 0.6; background: #fee2e2;' : ''}">
@@ -1351,7 +1279,7 @@ function clearAllData() {
     gradeFilter = 'all';
     callsToday = 0;
     
-    localStorage.clear();
+    chrome.storage.local.clear();
     renderAll();
     alert('All data cleared.');
 }

@@ -176,7 +176,8 @@ function checkAndResetDaily() {
                 students: students,
                 sessionPool: [],
                 currentStudent: null,
-                lastSubject: null
+                lastSubject: null,
+                callsToday: 0
             }, () => {
                 if (chrome.runtime.lastError) {
                     console.error('Error saving daily reset:', chrome.runtime.lastError);
