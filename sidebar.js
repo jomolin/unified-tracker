@@ -100,6 +100,26 @@ function getDaysSinceLastMGC(student) {
     return diffDays;
 }
 
+/**
+ * Calculate display weight — mirrors background.js logic exactly.
+ * Used only for showing weight in UI; background.js uses its own copy for selection.
+ */
+function getDisplayWeight(student) {
+    if (!student.participation) return 1.0;
+    const p = student.participation;
+    const callsThisSession = p.callsThisSession || 0;
+
+    if (callsThisSession === 0) return 1.2;
+
+    if (p.totalCalls >= 3) {
+        const accuracy = p.correctAnswers / p.totalCalls;
+        if (accuracy >= 0.8) return 0.4;
+    }
+
+    const sessionIncorrect = Math.max(0, p.incorrectAnswers - (p.correctAnswers * 0.5));
+    return 1.0 + (sessionIncorrect * 0.15);
+}
+
 function saveData() {
     chrome.storage.local.set({
         students: students,
@@ -116,7 +136,7 @@ function saveData() {
 }
 
 function loadData() {
-    chrome.storage.local.get(['students', 'schedules', 'metadata', 'absentToday', 'gradeFilter', 'callsToday', 'lastResetDate'], (result) => {
+    chrome.storage.local.get(['students', 'schedules', 'metadata', 'absentToday', 'gradeFilter', 'callsToday', 'sessionPool'], (result) => {
         if (chrome.runtime.lastError) {
             console.error('Error loading data:', chrome.runtime.lastError);
             return;
@@ -128,41 +148,11 @@ function loadData() {
         absentToday = result.absentToday || [];
         gradeFilter = result.gradeFilter || 'all';
         callsToday = result.callsToday || 0;
+        sessionPool = result.sessionPool || [];
 
-        checkDailyReset();
+        // Daily reset is handled by background.js — no duplicate here
         loadMetadataForm();
         renderAll();
-    });
-}
-
-function checkDailyReset() {
-    const today = new Date().toISOString().split('T')[0];
-    
-    chrome.storage.local.get(['lastResetDate'], (result) => {
-        const lastReset = result.lastResetDate || '';
-
-        if (lastReset !== today) {
-            absentToday = [];
-            sessionPool = [];
-            callsToday = 0;
-            
-            // Reset all student weights to 1.0
-            students.forEach(s => {
-                if (s.participation) {
-                    s.participation.weight = 1.0;
-                }
-            });
-            
-            chrome.storage.local.set({ 
-                lastResetDate: today,
-                absentToday: [],
-                sessionPool: [],
-                callsToday: 0,
-                students: students
-            }, () => {
-                saveData();
-            });
-        }
     });
 }
 
@@ -215,7 +205,6 @@ function renderInterestsList() {
     empty.style.display = 'none';
 
     list.innerHTML = students.map((student, index) => {
-        // Ensure interests exist
         if (!student.interests) {
             student.interests = {
                 extracurriculars: [],
@@ -341,16 +330,22 @@ function selectStudent() {
     // Delegate to background.js for consistent selection logic
     chrome.runtime.sendMessage({ action: 'selectStudent' });
     
-    // Wait a moment for background to update, then refresh display
+    // Wait for background to update, then refresh display
     setTimeout(() => {
-        chrome.storage.local.get(['currentStudent'], (result) => {
+        chrome.storage.local.get(['currentStudent', 'students'], (result) => {
             if (result.currentStudent) {
                 currentStudent = result.currentStudent;
+                // Get fresh student data from storage (background.js may have updated it)
+                if (result.students) {
+                    students = result.students;
+                }
+                const freshStudent = students.find(s => s.id === currentStudent.id) || currentStudent;
                 const display = document.getElementById('current-student-display');
+                const weight = getDisplayWeight(freshStudent);
                 display.innerHTML = `
                     <div class="current-student-name">${currentStudent.name}</div>
                     <div class="current-info">Grade ${currentStudent.grade} | ${getCurrentSubject()}</div>
-                    <div class="current-info">Called: ${currentStudent.participation.totalCalls} times | Accuracy: ${currentStudent.participation.totalCalls > 0 ? Math.round((currentStudent.participation.correctAnswers / currentStudent.participation.totalCalls) * 100) : 0}%</div>
+                    <div class="current-info">Called: ${freshStudent.participation.totalCalls} times | Accuracy: ${freshStudent.participation.totalCalls > 0 ? Math.round((freshStudent.participation.correctAnswers / freshStudent.participation.totalCalls) * 100) : 0}% | Weight: ${weight.toFixed(2)}</div>
                 `;
 
                 document.getElementById('btn-correct').disabled = false;
@@ -391,9 +386,10 @@ function clearCurrentStudent() {
     document.getElementById('btn-absent').disabled = true;
     
     // Reload data to get updated student info
-    chrome.storage.local.get(['students', 'callsToday'], (result) => {
+    chrome.storage.local.get(['students', 'callsToday', 'sessionPool'], (result) => {
         students = result.students || [];
         callsToday = result.callsToday || 0;
+        sessionPool = result.sessionPool || [];
         updateSessionInfo();
         
         const manageTab = document.getElementById('manage-tab');
@@ -415,13 +411,17 @@ function toggleGradeFilter() {
 }
 
 function updateSessionInfo() {
-    let availableCount = students.filter(s => {
+    let eligible = students.filter(s => {
         if (absentToday.includes(s.id)) return false;
         if (gradeFilter !== 'all' && s.grade !== parseInt(gradeFilter)) return false;
         return true;
-    }).length;
+    });
 
-    document.getElementById('students-remaining').textContent = availableCount;
+    // Show pool remaining (how many haven't been called this round)
+    const eligibleIds = new Set(eligible.map(s => s.id));
+    const poolRemaining = sessionPool.filter(id => eligibleIds.has(id)).length;
+
+    document.getElementById('students-remaining').textContent = poolRemaining > 0 ? poolRemaining : eligible.length;
     document.getElementById('calls-today').textContent = callsToday;
 }
 
@@ -502,7 +502,6 @@ function renderConnectionsList() {
     });
 
     list.innerHTML = sortedStudents.map(({ student, index, daysSince }) => {
-        // Ensure connections exist
         if (!student.connections) {
             student.connections = {
                 totalMGCs: 0,
@@ -521,12 +520,10 @@ function renderConnectionsList() {
                              daysSince === 1 ? 'Yesterday' :
                              `${daysSince} days ago`;
 
-        // Get today's note
         const today = new Date().toISOString().split('T')[0];
         const todayMGC = student.connections.mgcHistory.find(mgc => mgc.date === today);
         const todayNote = todayMGC ? todayMGC.note : '';
 
-        // Get last historical note
         const historicalMGCs = student.connections.mgcHistory.filter(mgc => mgc.date !== today);
         const lastHistoricalNote = historicalMGCs.length > 0 ? historicalMGCs[historicalMGCs.length - 1].note : '';
 
@@ -606,7 +603,6 @@ function saveStudentGoal(studentIndex) {
     const goalDiv = document.getElementById(`student-goal-${studentIndex}`);
     const newGoal = goalDiv.textContent.trim();
     
-    // If there's an existing goal and it's different from the new one, archive it
     if (student.goal && student.goal !== newGoal && student.goal.length > 0) {
         if (!student.goalHistory) {
             student.goalHistory = [];
@@ -618,7 +614,6 @@ function saveStudentGoal(studentIndex) {
         });
     }
     
-    // Set new goal with current date
     student.goal = newGoal;
     student.goalSetDate = new Date().toISOString().split('T')[0];
     
@@ -660,7 +655,8 @@ function viewHistory(studentIndex) {
                     Total Calls: ${student.participation.totalCalls}<br>
                     Correct: ${student.participation.correctAnswers}<br>
                     Incorrect: ${student.participation.incorrectAnswers}<br>
-                    Accuracy: ${student.participation.totalCalls > 0 ? Math.round((student.participation.correctAnswers / student.participation.totalCalls) * 100) : 0}%
+                    Accuracy: ${student.participation.totalCalls > 0 ? Math.round((student.participation.correctAnswers / student.participation.totalCalls) * 100) : 0}%<br>
+                    Current Weight: ${getDisplayWeight(student).toFixed(2)}
                 </p>
             </div>
         ` : '';
@@ -721,6 +717,7 @@ function handleStudentUpload() {
                             correctAnswers: 0,
                             incorrectAnswers: 0,
                             weight: 1.0,
+                            callsThisSession: 0,
                             subjectBreakdown: {}
                         },
                         connections: {
@@ -766,7 +763,6 @@ function processBulkStudents() {
             const lastname = parts.pop();
             let grade = 4;
             
-            // Check if last part is a number (grade)
             if (!isNaN(lastname)) {
                 grade = parseInt(lastname);
                 const actualLastname = parts.pop();
@@ -790,6 +786,7 @@ function processBulkStudents() {
                             correctAnswers: 0,
                             incorrectAnswers: 0,
                             weight: 1.0,
+                            callsThisSession: 0,
                             subjectBreakdown: {}
                         },
                         connections: {
@@ -823,6 +820,7 @@ function processBulkStudents() {
                             correctAnswers: 0,
                             incorrectAnswers: 0,
                             weight: 1.0,
+                            callsThisSession: 0,
                             subjectBreakdown: {}
                         },
                         connections: {
@@ -880,7 +878,8 @@ function renderStudentListManage() {
 
     list.innerHTML = students.map(student => {
         const isAbsent = absentToday.includes(student.id);
-        const weight = student.participation ? student.participation.weight.toFixed(2) : '1.00';
+        const weight = getDisplayWeight(student).toFixed(2);
+        const storedWeight = student.participation ? student.participation.weight.toFixed(2) : '1.00';
         
         return `
             <div class="student-manage-item" style="${isAbsent ? 'opacity: 0.6; background: #fee2e2;' : ''}">
@@ -1012,7 +1011,6 @@ function processScheduleCSV() {
             return;
         }
 
-        // Clear all schedules first
         schedules = {
             monday: [],
             tuesday: [],
@@ -1030,7 +1028,6 @@ function processScheduleCSV() {
             'friday': 'friday'
         };
 
-        // Skip header row
         for (let i = 1; i < lines.length; i++) {
             const parts = lines[i].split(',').map(s => s.trim());
             
@@ -1175,7 +1172,7 @@ function exportJSON() {
 }
 
 function exportCSV() {
-    const csv = ['Name,Grade,Goal,Total Calls,Correct,Incorrect,Accuracy,Total MGCs,Last MGC,Days Since MGC'];
+    const csv = ['Name,Grade,Goal,Total Calls,Correct,Incorrect,Accuracy,Weight,Total MGCs,Last MGC,Days Since MGC'];
     
     students.forEach(student => {
         const p = student.participation;
@@ -1185,11 +1182,12 @@ function exportCSV() {
         csv.push([
             student.name,
             student.grade,
-            student.goal || '',
+            `"${(student.goal || '').replace(/"/g, '""')}"`,
             p.totalCalls,
             p.correctAnswers,
             p.incorrectAnswers,
             accuracy + '%',
+            getDisplayWeight(student).toFixed(2),
             c.totalMGCs,
             c.lastConnection || 'Never',
             c.daysSinceLastMGC !== null ? c.daysSinceLastMGC : 'N/A'
@@ -1223,10 +1221,9 @@ function exportMarkdown() {
 
         md += `### ${student.name} (Grade ${student.grade})\n`;
         if (student.goal) md += `**Current Goal:** ${student.goal}\n`;
-        md += `**Participation:** ${p.totalCalls} calls, ${accuracy}% accuracy\n`;
+        md += `**Participation:** ${p.totalCalls} calls, ${accuracy}% accuracy, weight ${getDisplayWeight(student).toFixed(2)}\n`;
         md += `**Connections:** ${c.totalMGCs} MGCs, last ${c.daysSinceLastMGC !== null ? c.daysSinceLastMGC + ' days ago' : 'never'}\n`;
         
-        // Add goal history if exists
         if (student.goalHistory && student.goalHistory.length > 0) {
             md += `\n**Previous Goals:**\n`;
             student.goalHistory.forEach((historyItem, i) => {
@@ -1249,18 +1246,22 @@ function exportMarkdown() {
 }
 
 function resetWeights() {
-    if (!confirm('Reset all participation weights? This will not delete data.')) return;
+    if (!confirm('Reset all participation weights and call counts? This will not delete MGC data.')) return;
     students.forEach(s => {
         if (s.participation) {
             s.participation.weight = 1.0;
-            // Also reset all calls to truly reset weights
             s.participation.totalCalls = 0;
             s.participation.correctAnswers = 0;
             s.participation.incorrectAnswers = 0;
+            s.participation.callsThisSession = 0;
             s.participation.subjectBreakdown = {};
         }
     });
     callsToday = 0;
+
+    // Also clear the session pool so it rebuilds fresh
+    chrome.storage.local.set({ sessionPool: [] });
+
     saveData();
     renderStudentListManage();
     updateSessionInfo();
@@ -1295,6 +1296,9 @@ function updateSummaryStats() {
             return sum + acc;
         }, 0) / students.length : 0;
 
+    // Find students with highest/lowest weights for debugging
+    const neverCalled = students.filter(s => (s.participation.callsThisSession || 0) === 0).length;
+
     stats.innerHTML = `
         <div class="info-cards">
             <div class="info-card">
@@ -1312,6 +1316,10 @@ function updateSummaryStats() {
             <div class="info-card">
                 <div class="info-label">Avg Accuracy</div>
                 <div class="info-value">${Math.round(avgAccuracy * 100)}%</div>
+            </div>
+            <div class="info-card">
+                <div class="info-label">Not Called (Session)</div>
+                <div class="info-value">${neverCalled}</div>
             </div>
         </div>
     `;
@@ -1461,10 +1469,9 @@ document.addEventListener('click', function(e) {
 // STORAGE SYNC
 // ======================
 
-// Listen for changes from popup or other sources
+// Listen for changes from popup/background
 chrome.storage.onChanged.addListener((changes, areaName) => {
     if (areaName === "local") {
-        // Update students array if changed
         if (changes.students) {
             students = changes.students.newValue || [];
             renderStudentListManage();
@@ -1472,42 +1479,44 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
             updateSummaryStats();
         }
         
-        // Update schedules if changed
         if (changes.schedules) {
             schedules = changes.schedules.newValue || {};
             renderScheduleList();
         }
         
-        // Update absent list if changed
         if (changes.absentToday) {
             absentToday = changes.absentToday.newValue || [];
             updateSessionInfo();
         }
         
-        // Update grade filter if changed
         if (changes.gradeFilter) {
             gradeFilter = changes.gradeFilter.newValue || 'all';
+            document.getElementById('filter-display').textContent = gradeFilter === 'all' ? 'All' : `Y${gradeFilter}`;
             updateSessionInfo();
         }
         
-        // Update callsToday if changed
         if (changes.callsToday) {
             callsToday = changes.callsToday.newValue || 0;
             updateSessionInfo();
         }
         
-        // Update session pool if changed
         if (changes.sessionPool) {
             sessionPool = changes.sessionPool.newValue || [];
             updateSessionInfo();
         }
         
-        // Update current student if changed
         if (changes.currentStudent) {
             currentStudent = changes.currentStudent.newValue || null;
             if (currentStudent) {
-                document.getElementById('current-student-display').innerHTML = 
-                    `<div class="current-student-name">${currentStudent.name}</div>`;
+                const freshStudent = students.find(s => s.id === currentStudent.id) || currentStudent;
+                const weight = getDisplayWeight(freshStudent);
+                document.getElementById('current-student-display').innerHTML = `
+                    <div class="current-student-name">${currentStudent.name}</div>
+                    <div class="current-info">Weight: ${weight.toFixed(2)}</div>
+                `;
+                document.getElementById('btn-correct').disabled = false;
+                document.getElementById('btn-incorrect').disabled = false;
+                document.getElementById('btn-absent').disabled = false;
             }
         }
     }

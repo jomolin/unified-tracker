@@ -4,7 +4,7 @@
 // Student structure combines popup (quick tracking) with sidebar (detailed tracking):
 // {
 //   id, name, grade, goal,
-//   participation: { totalCalls, correctAnswers, incorrectAnswers, weight, subjectBreakdown },
+//   participation: { totalCalls, correctAnswers, incorrectAnswers, weight, callsThisSession, subjectBreakdown },
 //   connections: { totalMGCs, lastConnection, daysSinceLastMGC, history },
 //   interests: { extracurriculars, hobbies, strengths, notes }
 // }
@@ -25,17 +25,41 @@ function isRestrictedPage(url) {
         url.startsWith('about:');
 }
 
+/**
+ * Weight calculation — the SINGLE source of truth.
+ * 
+ * Base weight = 1.0 for everyone at session start.
+ * After being called:
+ *   - High performers (>=80% accuracy, 3+ calls): weight drops to 0.4
+ *     so they're less likely to be called again
+ *   - Struggling students: weight increases by 0.3 per incorrect answer
+ *     so they get more practice
+ *   - Students not yet called this session get a slight boost (1.2)
+ *     to ensure everyone gets a turn before repeats
+ */
 function calculateStudentWeight(student) {
-    // Use participation data if available, otherwise fallback
-    if (student.participation) {
-        let weight = student.participation.weight || 1;
-        return weight;
+    if (!student.participation) return 1.0;
+
+    const p = student.participation;
+    const callsThisSession = p.callsThisSession || 0;
+
+    // Students not yet called this session get a boost
+    if (callsThisSession === 0) {
+        return 1.2;
     }
-    // Fallback for old data
-    let weight = 1;
-    if (student.correctCount >= 3) weight = 0.5;
-    weight += (student.incorrectCount || 0) * 0.3;
-    return weight;
+
+    // High performers get called less
+    if (p.totalCalls >= 3) {
+        const accuracy = p.correctAnswers / p.totalCalls;
+        if (accuracy >= 0.8) {
+            return 0.4;
+        }
+    }
+
+    // Struggling students get called more
+    // Base 1.0 + 0.3 per incorrect this session
+    const sessionIncorrect = Math.max(0, p.incorrectAnswers - (p.correctAnswers * 0.5));
+    return 1.0 + (sessionIncorrect * 0.15);
 }
 
 // ======================
@@ -110,12 +134,13 @@ function checkAndResetOnSubjectChange(callback) {
             const lastSubject = result.lastSubject || '';
 
             if (currentSubject && currentSubject !== lastSubject) {
-                console.log(`Subject changed from "${lastSubject}" to "${currentSubject}" - resetting weights`);
+                console.log(`Subject changed from "${lastSubject}" to "${currentSubject}" - resetting session`);
 
                 const students = result.students || [];
+                // Reset per-session tracking, NOT overall weights
                 students.forEach(s => {
                     if (s.participation) {
-                        s.participation.weight = 1.0;
+                        s.participation.callsThisSession = 0;
                     }
                 });
 
@@ -128,7 +153,7 @@ function checkAndResetOnSubjectChange(callback) {
                     if (chrome.runtime.lastError) {
                         console.error('Error saving subject reset:', chrome.runtime.lastError);
                     } else {
-                        console.log('Weights reset due to subject change');
+                        console.log('Session reset due to subject change');
                     }
                     callback();
                 });
@@ -167,6 +192,7 @@ function checkAndResetDaily() {
             students.forEach(s => {
                 if (s.participation) {
                     s.participation.weight = 1.0;
+                    s.participation.callsThisSession = 0;
                 }
             });
 
@@ -213,68 +239,89 @@ function selectStudentDirectly() {
                 return;
             }
 
-            let students = result.students || [];
+            let allStudents = result.students || [];
             let sessionPool = result.sessionPool || [];
             const absentToday = result.absentToday || [];
             const gradeFilter = result.gradeFilter || 'all';
 
-            if (students.length === 0) {
+            if (allStudents.length === 0) {
                 console.log('No students available');
                 return;
             }
 
-            // Filter by grade
+            // Build eligible list: filter by grade and remove absent
+            let eligible = allStudents;
             if (gradeFilter !== 'all') {
-                students = students.filter(s => s.grade === parseInt(gradeFilter));
+                eligible = eligible.filter(s => s.grade === parseInt(gradeFilter));
             }
+            eligible = eligible.filter(s => !absentToday.includes(s.id));
 
-            // Remove absent students
-            students = students.filter(s => !absentToday.includes(s.id));
-
-            if (students.length === 0) {
+            if (eligible.length === 0) {
                 console.log('No students match filter criteria');
                 return;
             }
 
+            // Clean the pool: only keep IDs that are in the eligible list
+            const eligibleIds = new Set(eligible.map(s => s.id));
+            sessionPool = sessionPool.filter(id => eligibleIds.has(id));
+
             // Reset pool if empty
             if (sessionPool.length === 0) {
-                sessionPool = students.map(s => s.id);
+                sessionPool = eligible.map(s => s.id);
                 console.log('Session pool reset with', sessionPool.length, 'students');
             }
 
             // Get available students from pool
-            const availableStudents = students.filter(s => sessionPool.includes(s.id));
+            const poolSet = new Set(sessionPool);
+            const availableStudents = eligible.filter(s => poolSet.has(s.id));
 
             if (availableStudents.length === 0) {
-                console.log('No available students in pool');
+                // Shouldn't happen after pool reset, but safety net
+                sessionPool = eligible.map(s => s.id);
+                const selected = selectWeightedStudent(eligible);
+                sessionPool = sessionPool.filter(id => id !== selected.id);
+                finishSelection(selected, sessionPool, allStudents);
                 return;
             }
 
-            // Select student
+            // Select student using weights
             const selected = selectWeightedStudent(availableStudents);
 
             // Remove from pool
             sessionPool = sessionPool.filter(id => id !== selected.id);
 
-            // Save current student and pool
-            chrome.storage.local.set({
-                currentStudent: selected,
-                sessionPool: sessionPool
-            }, () => {
-                if (chrome.runtime.lastError) {
-                    console.error('Error saving selection:', chrome.runtime.lastError);
-                    return;
-                }
+            finishSelection(selected, sessionPool, allStudents);
+        });
+    });
+}
 
-                console.log('Student selected:', selected.name);
+function finishSelection(selected, sessionPool, allStudents) {
+    // Update callsThisSession on the student in the full array
+    const studentInArray = allStudents.find(s => s.id === selected.id);
+    if (studentInArray && studentInArray.participation) {
+        studentInArray.participation.callsThisSession = (studentInArray.participation.callsThisSession || 0) + 1;
+    }
 
-                // Show overlay on page
-                withActiveContentTab((tabId) => {
-                    sendMessageToContentScript(tabId, {
-                        action: 'showStudent',
-                        name: selected.name
-                    });
-                });
+    // Save current student, pool, and updated students
+    chrome.storage.local.set({
+        currentStudent: selected,
+        sessionPool: sessionPool,
+        students: allStudents
+    }, () => {
+        if (chrome.runtime.lastError) {
+            console.error('Error saving selection:', chrome.runtime.lastError);
+            return;
+        }
+
+        console.log('Student selected:', selected.name, 
+            '| Weight:', calculateStudentWeight(selected).toFixed(2),
+            '| Pool remaining:', sessionPool.length);
+
+        // Show overlay on page
+        withActiveContentTab((tabId) => {
+            sendMessageToContentScript(tabId, {
+                action: 'showStudent',
+                name: selected.name
             });
         });
     });
@@ -302,7 +349,7 @@ function markResponse(isCorrect) {
         const student = students.find(s => s.id === currentStudent.id);
 
         if (student && student.participation) {
-            // Update participation
+            // Update participation counts
             student.participation.totalCalls++;
             if (isCorrect) {
                 student.participation.correctAnswers++;
@@ -310,13 +357,8 @@ function markResponse(isCorrect) {
                 student.participation.incorrectAnswers++;
             }
 
-            // Update weight
-            const accuracy = student.participation.correctAnswers / student.participation.totalCalls;
-            if (accuracy >= 0.8 && student.participation.totalCalls >= 3) {
-                student.participation.weight = 0.5;
-            } else {
-                student.participation.weight = 1.0 + (student.participation.incorrectAnswers * 0.3);
-            }
+            // Recalculate stored weight for display purposes
+            student.participation.weight = calculateStudentWeight(student);
 
             // Update subject breakdown
             getCurrentSubjectFromSchedule((currentSubject) => {
@@ -334,7 +376,6 @@ function markResponse(isCorrect) {
                     }
                 }
 
-                // Save everything INCLUDING callsToday
                 chrome.storage.local.set({
                     students: students,
                     currentStudent: null,
@@ -345,7 +386,8 @@ function markResponse(isCorrect) {
                         return;
                     }
 
-                    console.log('Response marked:', isCorrect ? 'correct' : 'incorrect');
+                    console.log('Response marked:', isCorrect ? 'correct' : 'incorrect',
+                        '| New weight:', student.participation.weight.toFixed(2));
 
                     // Hide overlay
                     withActiveContentTab((tabId) => {

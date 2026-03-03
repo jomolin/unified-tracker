@@ -2,6 +2,25 @@
 
 let currentStudent = null;
 
+/**
+ * Display weight — mirrors background.js logic exactly.
+ */
+function getDisplayWeight(student) {
+    if (!student.participation) return 1.0;
+    const p = student.participation;
+    const callsThisSession = p.callsThisSession || 0;
+
+    if (callsThisSession === 0) return 1.2;
+
+    if (p.totalCalls >= 3) {
+        const accuracy = p.correctAnswers / p.totalCalls;
+        if (accuracy >= 0.8) return 0.4;
+    }
+
+    const sessionIncorrect = Math.max(0, p.incorrectAnswers - (p.correctAnswers * 0.5));
+    return 1.0 + (sessionIncorrect * 0.15);
+}
+
 // Load data and update UI
 function loadData() {
     chrome.storage.local.get(['currentStudent', 'gradeFilter', 'sessionPool', 'students', 'absentToday'], (result) => {
@@ -16,7 +35,19 @@ function loadData() {
 
         // Update current student display
         if (currentStudent) {
-            document.getElementById('selected-student').textContent = currentStudent.name;
+            const freshStudent = students.find(s => s.id === currentStudent.id) || currentStudent;
+            const weight = getDisplayWeight(freshStudent);
+            const accuracy = freshStudent.participation && freshStudent.participation.totalCalls > 0
+                ? Math.round((freshStudent.participation.correctAnswers / freshStudent.participation.totalCalls) * 100)
+                : 0;
+            document.getElementById('selected-student').innerHTML = `
+                <div>
+                    <div style="font-size: 24px; font-weight: bold;">${currentStudent.name}</div>
+                    <div style="font-size: 12px; color: #666; margin-top: 4px;">
+                        Calls: ${freshStudent.participation?.totalCalls || 0} | Accuracy: ${accuracy}% | Weight: ${weight.toFixed(2)}
+                    </div>
+                </div>
+            `;
             document.getElementById('btn-correct').disabled = false;
             document.getElementById('btn-incorrect').disabled = false;
         } else {
@@ -25,18 +56,17 @@ function loadData() {
             document.getElementById('btn-incorrect').disabled = true;
         }
 
-        // Update pool remaining
+        // Update pool remaining — filter pool to only eligible students
         let filteredStudents = students;
         if (gradeFilter !== 'all') {
-            filteredStudents = students.filter(s => s.grade === parseInt(gradeFilter));
+            filteredStudents = filteredStudents.filter(s => s.grade === parseInt(gradeFilter));
         }
         filteredStudents = filteredStudents.filter(s => !absentToday.includes(s.id));
         
-        const poolCount = sessionPool.filter(id => 
-            filteredStudents.some(s => s.id === id)
-        ).length;
+        const eligibleIds = new Set(filteredStudents.map(s => s.id));
+        const poolCount = sessionPool.filter(id => eligibleIds.has(id)).length;
         
-        document.getElementById('pool-remaining').textContent = poolCount;
+        document.getElementById('pool-remaining').textContent = poolCount > 0 ? poolCount : filteredStudents.length;
 
         // Update current subject
         getCurrentSubject();
@@ -81,7 +111,7 @@ function getCurrentSubject() {
 // Event listeners
 document.getElementById('btn-select').addEventListener('click', () => {
     chrome.runtime.sendMessage({ action: 'selectStudent' });
-    setTimeout(loadData, 100);
+    setTimeout(loadData, 200);
 });
 
 document.getElementById('btn-toggle-grade').addEventListener('click', () => {
@@ -91,16 +121,15 @@ document.getElementById('btn-toggle-grade').addEventListener('click', () => {
 
 document.getElementById('btn-correct').addEventListener('click', () => {
     chrome.runtime.sendMessage({ action: 'markCorrect' });
-    setTimeout(loadData, 100);
+    setTimeout(loadData, 200);
 });
 
 document.getElementById('btn-incorrect').addEventListener('click', () => {
     chrome.runtime.sendMessage({ action: 'markIncorrect' });
-    setTimeout(loadData, 100);
+    setTimeout(loadData, 200);
 });
 
 document.getElementById('btn-open-sidebar').addEventListener('click', () => {
-    // Open sidebar panel
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         if (tabs[0]) {
             chrome.sidePanel.open({ windowId: tabs[0].windowId });
