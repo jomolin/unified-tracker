@@ -2,25 +2,6 @@
 
 let currentStudent = null;
 
-/**
- * Display weight — mirrors background.js logic exactly.
- */
-function getDisplayWeight(student) {
-    if (!student.participation) return 1.0;
-    const p = student.participation;
-    const callsThisSession = p.callsThisSession || 0;
-
-    if (callsThisSession === 0) return 1.2;
-
-    if (p.totalCalls >= 3) {
-        const accuracy = p.correctAnswers / p.totalCalls;
-        if (accuracy >= 0.8) return 0.4;
-    }
-
-    const sessionIncorrect = Math.max(0, p.incorrectAnswers - (p.correctAnswers * 0.5));
-    return 1.0 + (sessionIncorrect * 0.15);
-}
-
 // Load data and update UI
 function loadData() {
     chrome.storage.local.get(['currentStudent', 'gradeFilter', 'sessionPool', 'students', 'absentToday'], (result) => {
@@ -36,7 +17,6 @@ function loadData() {
         // Update current student display
         if (currentStudent) {
             const freshStudent = students.find(s => s.id === currentStudent.id) || currentStudent;
-            const weight = getDisplayWeight(freshStudent);
             const accuracy = freshStudent.participation && freshStudent.participation.totalCalls > 0
                 ? Math.round((freshStudent.participation.correctAnswers / freshStudent.participation.totalCalls) * 100)
                 : 0;
@@ -44,7 +24,7 @@ function loadData() {
                 <div>
                     <div style="font-size: 24px; font-weight: bold;">${currentStudent.name}</div>
                     <div style="font-size: 12px; color: #666; margin-top: 4px;">
-                        Calls: ${freshStudent.participation?.totalCalls || 0} | Accuracy: ${accuracy}% | Weight: ${weight.toFixed(2)}
+                        Calls: ${freshStudent.participation?.totalCalls || 0} | Accuracy: ${accuracy}%
                     </div>
                 </div>
             `;

@@ -4,7 +4,7 @@
 // Student structure combines popup (quick tracking) with sidebar (detailed tracking):
 // {
 //   id, name, grade, goal,
-//   participation: { totalCalls, correctAnswers, incorrectAnswers, weight, callsThisSession, subjectBreakdown },
+//   participation: { totalCalls, correctAnswers, incorrectAnswers, callsThisSession, subjectBreakdown },
 //   connections: { totalMGCs, lastConnection, daysSinceLastMGC, history },
 //   interests: { extracurriculars, hobbies, strengths, notes }
 // }
@@ -23,43 +23,6 @@ function isRestrictedPage(url) {
         url.startsWith('chrome-extension://') ||
         url.startsWith('edge://') ||
         url.startsWith('about:');
-}
-
-/**
- * Weight calculation — the SINGLE source of truth.
- * 
- * Base weight = 1.0 for everyone at session start.
- * After being called:
- *   - High performers (>=80% accuracy, 3+ calls): weight drops to 0.4
- *     so they're less likely to be called again
- *   - Struggling students: weight increases by 0.3 per incorrect answer
- *     so they get more practice
- *   - Students not yet called this session get a slight boost (1.2)
- *     to ensure everyone gets a turn before repeats
- */
-function calculateStudentWeight(student) {
-    if (!student.participation) return 1.0;
-
-    const p = student.participation;
-    const callsThisSession = p.callsThisSession || 0;
-
-    // Students not yet called this session get a boost
-    if (callsThisSession === 0) {
-        return 1.2;
-    }
-
-    // High performers get called less
-    if (p.totalCalls >= 3) {
-        const accuracy = p.correctAnswers / p.totalCalls;
-        if (accuracy >= 0.8) {
-            return 0.4;
-        }
-    }
-
-    // Struggling students get called more
-    // Base 1.0 + 0.3 per incorrect this session
-    const sessionIncorrect = Math.max(0, p.incorrectAnswers - (p.correctAnswers * 0.5));
-    return 1.0 + (sessionIncorrect * 0.15);
 }
 
 // ======================
@@ -137,7 +100,6 @@ function checkAndResetOnSubjectChange(callback) {
                 console.log(`Subject changed from "${lastSubject}" to "${currentSubject}" - resetting session`);
 
                 const students = result.students || [];
-                // Reset per-session tracking, NOT overall weights
                 students.forEach(s => {
                     if (s.participation) {
                         s.participation.callsThisSession = 0;
@@ -191,7 +153,6 @@ function checkAndResetDaily() {
             const students = result.students || [];
             students.forEach(s => {
                 if (s.participation) {
-                    s.participation.weight = 1.0;
                     s.participation.callsThisSession = 0;
                 }
             });
@@ -216,19 +177,20 @@ function checkAndResetDaily() {
 }
 
 // ======================
-// STUDENT SELECTION
+// STUDENT SELECTION (SHUFFLE ROUND-ROBIN)
 // ======================
 
-function selectWeightedStudent(students) {
-    const totalWeight = students.reduce((sum, s) => sum + calculateStudentWeight(s), 0);
-    let random = Math.random() * totalWeight;
-
-    for (const student of students) {
-        random -= calculateStudentWeight(student);
-        if (random <= 0) return student;
+/**
+ * Fisher-Yates shuffle — produces a fair random ordering.
+ * Returns a new shuffled array of student IDs.
+ */
+function shuffleArray(array) {
+    const shuffled = [...array];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
-
-    return students[students.length - 1];
+    return shuffled;
 }
 
 function selectStudentDirectly() {
@@ -265,30 +227,25 @@ function selectStudentDirectly() {
             const eligibleIds = new Set(eligible.map(s => s.id));
             sessionPool = sessionPool.filter(id => eligibleIds.has(id));
 
-            // Reset pool if empty
+            // If pool is empty, reshuffle all eligible students
             if (sessionPool.length === 0) {
-                sessionPool = eligible.map(s => s.id);
-                console.log('Session pool reset with', sessionPool.length, 'students');
+                sessionPool = shuffleArray(eligible.map(s => s.id));
+                console.log('Session pool reshuffled with', sessionPool.length, 'students');
             }
 
-            // Get available students from pool
-            const poolSet = new Set(sessionPool);
-            const availableStudents = eligible.filter(s => poolSet.has(s.id));
+            // Take the next student from the front of the pool
+            const selectedId = sessionPool.shift();
+            const selected = eligible.find(s => s.id === selectedId);
 
-            if (availableStudents.length === 0) {
-                // Shouldn't happen after pool reset, but safety net
-                sessionPool = eligible.map(s => s.id);
-                const selected = selectWeightedStudent(eligible);
-                sessionPool = sessionPool.filter(id => id !== selected.id);
-                finishSelection(selected, sessionPool, allStudents);
+            if (!selected) {
+                // Safety net — shouldn't happen
+                console.error('Selected ID not found in eligible list, reshuffling');
+                sessionPool = shuffleArray(eligible.map(s => s.id));
+                const fallbackId = sessionPool.shift();
+                const fallback = eligible.find(s => s.id === fallbackId);
+                finishSelection(fallback, sessionPool, allStudents);
                 return;
             }
-
-            // Select student using weights
-            const selected = selectWeightedStudent(availableStudents);
-
-            // Remove from pool
-            sessionPool = sessionPool.filter(id => id !== selected.id);
 
             finishSelection(selected, sessionPool, allStudents);
         });
@@ -313,8 +270,7 @@ function finishSelection(selected, sessionPool, allStudents) {
             return;
         }
 
-        console.log('Student selected:', selected.name, 
-            '| Weight:', calculateStudentWeight(selected).toFixed(2),
+        console.log('Student selected:', selected.name,
             '| Pool remaining:', sessionPool.length);
 
         // Show overlay on page
@@ -357,9 +313,6 @@ function markResponse(isCorrect) {
                 student.participation.incorrectAnswers++;
             }
 
-            // Recalculate stored weight for display purposes
-            student.participation.weight = calculateStudentWeight(student);
-
             // Update subject breakdown
             getCurrentSubjectFromSchedule((currentSubject) => {
                 if (currentSubject) {
@@ -386,8 +339,7 @@ function markResponse(isCorrect) {
                         return;
                     }
 
-                    console.log('Response marked:', isCorrect ? 'correct' : 'incorrect',
-                        '| New weight:', student.participation.weight.toFixed(2));
+                    console.log('Response marked:', isCorrect ? 'correct' : 'incorrect');
 
                     // Hide overlay
                     withActiveContentTab((tabId) => {
